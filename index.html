@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puzzle</title>
+    <style>
+        body {
+            background-color: #add8e6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .puzzle-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .puzzle-controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .puzzle {
+            display: grid;
+            gap: 2px;
+            grid-auto-rows: 125px; /* Wysokość automatycznie dopasowana do 125px */
+        }
+
+        .puzzle div {
+            cursor: move;
+        }
+
+        .dragging {
+            display: none;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Kontener puzzli -->
+    <div class="puzzle-container">
+        <!-- Kontrolki puzzli -->
+        <div class="puzzle-controls">
+            <button id="startButton" type="button" data-action="start">Start</button>
+            <button id="changeImageButton" type="button">Inny obrazek</button> 
+        </div>
+        <!-- Licznik ruchów -->
+        <div id="moveCounter">Ruchy: 0</div>
+        <!-- Odstęp między napisem a obrazkiem -->
+        <div style="margin-top: 20px;"></div> 
+        <!-- Obszar puzzli -->
+        <div class="puzzle" data-src="puzzle1.png" data-alt-src="puzzle1.png" data-width="500" data-height="500" data-size="125"></div>
+    </div>
+
+    <script>
+        // Inicjalizacja puzzli
+        initializeAllPuzzles();
+
+        // Obsługa przycisku "Start"
+        document.getElementById('startButton').addEventListener('click', (e) => {
+            const puzzle = document.querySelector('.puzzle');
+            enablePuzzleMovement(puzzle);
+            startChildren(puzzle);
+            resetMoveCounter();
+        });
+
+        // Obsługa przycisku "Inny obrazek"
+        document.getElementById('changeImageButton').addEventListener('click', (e) => { 
+            const puzzle = document.querySelector('.puzzle');
+            changeImage(puzzle);
+        });
+
+        // Zmienna przechowująca liczbę ruchów
+        let moveCounter = 0;
+
+        // Funkcja resetująca liczbę ruchów
+        function resetMoveCounter() {
+            moveCounter = 0;
+            updateMoveCounter();
+        }
+
+        // Funkcja aktualizująca liczbę ruchów w interfejsie
+        function updateMoveCounter() {
+            document.getElementById('moveCounter').innerText = "Ruchy: " + moveCounter;
+        }
+
+        // Inicjalizacja wszystkich puzzli na stronie
+        function initializeAllPuzzles() {
+            document.querySelectorAll('.puzzle').forEach(initializePuzzle);
+        }
+
+        // Inicjalizacja pojedynczego puzzla
+        function initializePuzzle(puzzle) {
+            const options = {
+                imgSrc: puzzle.dataset.src,
+                altImgSrc: puzzle.dataset.altSrc,
+                width: +puzzle.dataset.width,
+                height: +puzzle.dataset.height,
+                size: +puzzle.dataset.size
+            };
+
+            puzzle.correctOrder = []; // Tablica przechowująca prawidłowe pozycje puzzli
+            for (let y = 0; y < options.height; y += options.size) {
+                for (let x = 0; x < options.width; x += options.size) {
+                    const piece = createPiece(x, y, options);
+                    piece.setAttribute('draggable', false);
+                    puzzle.append(piece);
+
+                    var coordinates = [y / options.size, x / options.size];
+                    puzzle.correctOrder.push(coordinates);
+                }
+            }
+        }
+
+        // Tworzenie pojedynczego elementu puzzla
+        function createPiece(x, y, options) {
+            const piece = document.createElement('div');
+            Object.assign(piece.style, {
+                width: `${options.size}px`,
+                height: `${options.size}px`,
+                background: `url(${options.imgSrc}) -${x}px -${y}px`,
+                gridRow: `${y / options.size + 1} / span 1`, // Pozycja w siatce - wiersz
+                gridColumn: `${x / options.size + 1} / span 1`, // Pozycja w siatce - kolumna
+            });
+            return piece;
+        }
+
+        // Włączanie możliwości przesuwania puzzli
+        function enablePuzzleMovement(puzzle) {
+            const pieces = puzzle.querySelectorAll('div');
+            pieces.forEach(piece => {
+                piece.setAttribute('draggable', true);
+                piece.addEventListener('dragstart', dragStart);
+                piece.addEventListener('dragover', dragOver);
+                piece.addEventListener('drop', drop);
+                piece.addEventListener('dragend', dragEnd);
+            });
+        }
+
+        // Losowe rozmieszczenie puzzli na starcie
+        function startChildren(el) {
+            const pieces = Array.from(el.children);
+            pieces.sort(() => Math.random() - 0.5);
+            pieces.forEach((piece, index) => {
+                piece.style.gridRow = `${Math.floor(index / 4) + 1} / span 1`;
+                piece.style.gridColumn = `${index % 4 + 1} / span 1`;
+            });
+        }
+
+        // Zmienna przechowująca puzzel przeciągany przez użytkownika
+        let draggedPiece = null;
+
+        // Obsługa zdarzenia rozpoczęcia przeciągania puzzla
+        function dragStart(e) {
+            draggedPiece = e.target;
+            e.dataTransfer.setData('text/plain', '');
+            this.classList.add('dragging');
+        }
+
+        // Obsługa zdarzenia przeciągania nad obszarem puzzla
+        function dragOver(e) {
+            e.preventDefault();
+        }
+
+        // Obsługa zdarzenia upuszczenia puzzla na innym elemencie puzzla
+        function drop(e) {
+            e.preventDefault();
+            if (draggedPiece !== this) {
+                const tmpGridRow = this.style.gridRow;
+                const tmpGridColumn = this.style.gridColumn;
+                this.style.gridRow = draggedPiece.style.gridRow;
+                this.style.gridColumn = draggedPiece.style.gridColumn;
+                draggedPiece.style.gridRow = tmpGridRow;
+                draggedPiece.style.gridColumn = tmpGridColumn;
+                moveCounter++;
+                updateMoveCounter();
+            }
+            draggedPiece.classList.remove('dragging');
+        }
+
+        // Obsługa zdarzenia zakończenia przeciągania puzzla
+        function dragEnd() {
+            this.style.display = 'block';
+            draggedPiece = null;
+
+            var correct = this.parentNode.correctOrder;
+            var current = currentPuzzlePosition(this.parentNode);
+
+            console.log(correct);
+            console.log(current);
+
+            if (arrayEquals(correct, current)) {
+                alert("Gratulacje!");
+                resetMoveCounter();
+            }
+        }
+
+        // Pobranie aktualnej pozycji puzzli
+        function currentPuzzlePosition(puzzle) {
+            const pieces = puzzle.querySelectorAll('div');
+            const currentOrder = [];
+
+            pieces.forEach(piece => {
+                const gridRowValue = piece.style.gridRow;
+                const gridColumnValue = piece.style.gridColumn;
+                
+                const row = parseInt(gridRowValue.split("/")[0])-1;
+                const column = parseInt(gridColumnValue.split("/")[0])-1;
+
+                currentOrder.push([row, column]);
+            });
+
+            return currentOrder;
+        }
+
+        // Sprawdzenie, czy dwie tablice są identyczne
+        function arrayEquals(a, b) {
+            if (a === b) return true;
+            if (a.length !== b.length) return false;
+            for (let i = 0; i < a.length; i++) {
+                if (Array.isArray(a[i]) && Array.isArray(b[i])) {
+                    if (!arrayEquals(a[i], b[i])) return false;
+                } else {
+                    if (a[i] !== b[i]) return false;
+                }
+            }
+            return true;
+        }
+
+        // Zmiana obrazka puzzla
+        function changeImage(puzzle) {
+            const newImageSrc = "puzzle2.jpg";
+            if (newImageSrc) {
+                const pieces = puzzle.querySelectorAll('div');
+                pieces.forEach(piece => {
+                    piece.style.background = `url(${newImageSrc}) ${piece.style.backgroundPosition}`;
+                });
+                resetMoveCounter();
+            }
+        }
+    </script>
+</body>
+</html>
